@@ -27,12 +27,16 @@
 ### 3.2. `XlsxManager` (Utility)
 
 *   Excel 파일(`.xlsx`)을 직접 다루는 클래스입니다.
-*   `OpenXLSX` 라이브러리를 래핑하여 Excel 파일을 읽고, 시트 정보를 가져오며, 내용을 CSV 형식으로 변환하는 핵심 로직을 수행합니다.
+*   `OpenXLSX` 라이브러리를 통해 Excel 파일을 읽고, 시트 정보를 가져오며, 내용을 CSV 형식으로 변환하는 핵심 로직을 수행합니다.
 
 ### 3.3. `StructGenerator` (Utility)
 
 *   CSV로 변환될 데이터의 구조에 맞춰 C++ `USTRUCT` 코드를 생성하는 클래스입니다.
 *   Excel 시트의 첫 번째 행을 변수 타입으로, 두 번째 행을 변수명으로 인식하여 `FTableRowBase`를 상속받는 구조체 코드가 담긴 헤더 파일을 생성합니다.
+
+### 3.4. `DataTableAssetGenerator` (Utility)
+
+*   CSV를 임포트하여 데이터 테이블을 자동 생성하는 클래스입니다.
 
 ## 4. 의존성
 
@@ -42,7 +46,7 @@
 
 1.  본 모듈을 프로젝트의 `Source` 폴더에 추가합니다.
 2.  프로젝트의 `.uproject` 파일 또는 플러그인의 `.uplugin` 파일에 모듈을 추가하여 활성화합니다.
-3.  언리얼 에디터를 실행한 후, (아마도) 상단 메뉴의 'Tools' 또는 'Window'에서 `DataTableManager`를 찾아 실행합니다.
+3.  언리얼 에디터를 실행한 후, 상단 메뉴의 'Tools' 또는 'Window'에서 `DataTableManager`를 찾아 실행합니다.
 4.  UI 창에서 Excel 파일이 위치한 폴더와 CSV, Struct 파일을 저장할 폴더 경로를 지정합니다.
 5.  목록에 나타난 Excel 시트 중 원하는 항목을 체크하고 아래의 버튼을 눌러 작업을 수행합니다.
     *   **Convert to CSV**: 선택된 시트를 CSV 파일로 변환합니다.
