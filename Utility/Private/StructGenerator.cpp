@@ -8,6 +8,8 @@
 using namespace OpenXLSX;
 using namespace std;
 
+static TMap<FString, FString> ValidType = { {"long double", "double"}, {"string", "FString"}, {"fstring", "FString"}, {"text", "FText"}, {"ftext", "FText"} };
+
 StructGenerator::StructGenerator()
 {
 }
@@ -117,17 +119,10 @@ FString StructGenerator::GetUnrealType(const FString& InVarType)
 {
 	FString VarTypeLower = InVarType.ToLower();
 
-	if (VarTypeLower == "long double")
+	FString* ChangedType = ValidType.Find(VarTypeLower);
+	if (ChangedType != nullptr)
 	{
-		return "double";
-	}
-	else if (VarTypeLower == "string" || VarTypeLower == "fstring")
-	{
-		return "FString";
-	}
-	else if (VarTypeLower == "text" || VarTypeLower == "ftext")
-	{
-		return "FText";
+		return *ChangedType;
 	}
 
 	return InVarType;

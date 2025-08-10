@@ -6,13 +6,14 @@
 #include "Containers/Map.h"
 #include "Misc/ConfigCacheIni.h"
 
+#include "FolderPathModifier.h"
+#include "SheetListView.h"
+
 #include "Editor.h"
 #include "EditorStyleSet.h"
 #include "EditorFontGlyphs.h"
 
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Layout/SBorder.h"
-#include "WIdgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -39,99 +40,14 @@ static const FName ColumnID_ExcelLabel("ExcelName");
 static const FName ColumnID_ExistCSVLabel("ExistCSV");
 static const FName ColumnID_ExistStructLabel("ExistStruct");
 
-void SSheetListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
-{
-    Item = InArgs._Item;
-
-    Item->DataChangedDelegate.AddSP(this, &SSheetListRow::OnDataChanged);
-
-    SMultiColumnTableRow<TSharedPtr<FSheetListRowData>>::Construct(
-        FSuperRowType::FArguments().Style(FAppStyle::Get(), "TableView.DarkRow"), InOwnerTableView
-    );
-}
-
-TSharedRef<SWidget> SSheetListRow::GenerateWidgetForColumn(const FName& ColumnName)
-{
-    return SNew(SBox)
-        .HeightOverride(30.f)
-        .HAlign(HAlign_Center)
-        .VAlign(VAlign_Center)
-        [
-            GetWidgetForColum(ColumnName)
-        ];
-}
-
-
-TSharedRef<SWidget> SSheetListRow::GetWidgetForColum(const FName& ColumnName)
-{
-    if (Item.IsValid() == false)
-    {
-        return SNullWidget::NullWidget;
-    }
-
-    if (ColumnName == ColumnID_SelectLabel)
-    {
-        return SAssignNew(CheckBox, SCheckBox)
-            .IsChecked(ECheckBoxState::Unchecked)
-            .OnCheckStateChanged(this, &SSheetListRow::OnCheckStateChanged);
-    }
-
-    if (ColumnName == ColumnID_SheetLabel)
-    {
-        return SNew(STextBlock).Text(FText::FromString(Item->GetSheetName()));
-    }
-
-    if (ColumnName == ColumnID_ExcelLabel)
-    {
-        return SNew(STextBlock).Text(FText::FromString(Item->GetExcelName()));
-    }
-
-    if (ColumnName == ColumnID_ExistCSVLabel)
-    {
-        return SAssignNew(ExistCSVTextBlock ,STextBlock)
-            .Text(FText::FromString(Item->IsExistCSV() ? "True" : "False"))
-            .ColorAndOpacity(FSlateColor(Item->IsExistCSV() ? FLinearColor::Blue : FLinearColor::Red));
-    }
-
-    if (ColumnName == ColumnID_ExistStructLabel)
-    {
-        return SNew(STextBlock)
-            .Text(FText::FromString(Item->IsExistStruct() ? "True" : "False"))
-            .ColorAndOpacity(FSlateColor(Item->IsExistStruct() ? FLinearColor::Blue : FLinearColor::Red));
-    }
-
-    return SNullWidget::NullWidget;
-}
-
-void SSheetListRow::OnDataChanged()
-{
-    if (ExistCSVTextBlock.IsValid() == false || CheckBox.IsValid() == false || Item.IsValid() == false)
-    {
-        return;
-    }
-
-    ExistCSVTextBlock->SetText(FText::FromString(Item->IsExistCSV() ? "True" : "False"));
-    ExistCSVTextBlock->SetColorAndOpacity(FSlateColor(Item->IsExistCSV() ? FLinearColor::Blue : FLinearColor::Red));
-
-    CheckBox->SetIsChecked(Item->IsChecked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
-}
-
-void SSheetListRow::OnCheckStateChanged(ECheckBoxState NewState)
-{
-    if (Item.IsValid() == false)
-    {
-        return;
-    }
-
-    Item->SetIsChecked(NewState == ECheckBoxState::Checked, true);
-}
-
 void SDataTableManager::Construct(const FArguments& InArgs)
 {
-    ToolConfig = GetMutableDefault<UDataTableManagerConfig>();
-    ToolConfig->LoadConfig();
-
     TryCacheUStructName();
+
+    FolderPathModifiers.Add(EPathType::PATH_EXCEL, nullptr);
+    FolderPathModifiers.Add(EPathType::PATH_CSV, nullptr);
+    FolderPathModifiers.Add(EPathType::PATH_STRUCT, nullptr);
+    FolderPathModifiers.Add(EPathType::PATH_ASSET, nullptr);
 
     this->ChildSlot
         [
@@ -140,47 +56,49 @@ void SDataTableManager::Construct(const FArguments& InArgs)
                 .AutoHeight()
                 .Padding(5)
                 [
-                    CreateFolderPathModifier(TEXT("Excel Folder Path"),
-                        TEXT("Excel Folder Path (You Must be Select Folder in Project Directory)"), ToolConfig->CachedExcelPath,
-                        ExcelFolderPathWidget,
-                        &SDataTableManager::OnExcelFolderPathTextChanged,
-                        &SDataTableManager::ExcelFolderBrowserBtnClicked)
+                    SAssignNew(FolderPathModifiers[EPathType::PATH_EXCEL],SFolderPathModifier)
+                        .Title_Str(TEXT("Excel Folder Path"))
+                        .Hint_Str(TEXT("Excel Folder Path (You Must be Select Folder in Project Directory)"))
+                        .PathType(EPathType::PATH_EXCEL)
+                        .DefaultPath(FPaths::ProjectDir())
+                        .OnTextChanged(this, &SDataTableManager::OnExcelFolderPathTextChanged)
                 ]
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5)
                 [
-                    CreateFolderPathModifier(TEXT("CSV Folder Path"),
-                        TEXT("CSV Folder Path (You Must be Select Folder in Project Directory)"), ToolConfig->CachedCSVPath,
-                        CSVFolderPathWidget,
-                        &SDataTableManager::OnCSVFolderPathTextChanged,
-                        &SDataTableManager::CSVFolderBrowserBtnClicked)
+                    SAssignNew(FolderPathModifiers[EPathType::PATH_CSV], SFolderPathModifier)
+                        .Title_Str(TEXT("CSV Folder Path"))
+                        .Hint_Str(TEXT("CSV Folder Path (You Must be Select Folder in Project Directory)"))
+                        .PathType(EPathType::PATH_CSV)
+                        .DefaultPath(FPaths::ProjectDir())
+                        .OnTextChanged(this, &SDataTableManager::OnCSVFolderPathTextChanged)
                 ]
                 + SVerticalBox::Slot()
 				.AutoHeight()
 				.Padding(5)
 				[
-					CreateFolderPathModifier(TEXT("Struct Folder Path"),
-						TEXT("Struct Header Folder Path (You Must be Select Folder in Project Source Directory)"), ToolConfig->CachedStructPath,
-						StructFolderPathWidget,
-						&SDataTableManager::OnStructFolderPathTextChanged,
-						&SDataTableManager::StructFolderBrowserBtnClicked)
+                    SAssignNew(FolderPathModifiers[EPathType::PATH_STRUCT], SFolderPathModifier)
+                        .Title_Str(TEXT("Struct Folder Path"))
+                        .Hint_Str(TEXT("Struct Header Folder Path (You Must be Select Folder in Project Source Directory)"))
+                        .PathType(EPathType::PATH_STRUCT)
+                        .DefaultPath(FPaths::GameSourceDir())
 				]
                 + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(5)
-                    [
-                        CreateFolderPathModifier(TEXT("Asset Folder Path"),
-                            TEXT("Asset Folder Path (You Must be Select Folder in Project Content Directory)"), ToolConfig->CachedAssetPath,
-                            AssetFolderPathWidget,
-                            &SDataTableManager::OnAssetFolderPathTextChanged,
-                            &SDataTableManager::AssetFolderBrowserBtnClicked)
-                    ]
+                .AutoHeight()
+                .Padding(5)
+                [
+                    SAssignNew(FolderPathModifiers[EPathType::PATH_ASSET], SFolderPathModifier)
+                        .Title_Str(TEXT("Asset Folder Path"))
+                        .Hint_Str(TEXT("Struct Header Folder Path (You Must be Select Folder in Project Source Directory)"))
+                        .PathType(EPathType::PATH_ASSET)
+                        .DefaultPath(FPaths::ProjectContentDir())
+                ]
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(0, 5, 0, 0)
                 [
-                    CreateListView()
+                    SAssignNew(SheetListView, SSheetListView)
                 ]
 				+ SVerticalBox::Slot()
 				.AutoHeight()
@@ -213,355 +131,22 @@ void SDataTableManager::Construct(const FArguments& InArgs)
 
     TryCacheExcelFiles();
     TryCacheCSVFiles();
-    RefreshSheetState();
-    RefreshCSVState();
-}
-
-TSharedRef<SWidget> SDataTableManager::CreateListView()
-{
-    return SAssignNew(this->ListView, SListView<TSharedPtr<FSheetListRowData>>)
-        .OnGenerateRow(this, &SDataTableManager::OnGenerateRowForList)
-        .ListItemsSource(&this->DataList)
-        .Visibility(EVisibility::Visible)
-        .HeaderRow(
-            SNew(SHeaderRow)
-            + SHeaderRow::Column(ColumnID_SelectLabel)
-            .DefaultLabel(LOCTEXT("CSVConverter_SelectLabel", "Select"))
-            .ManualWidth(100.f)
-            .VAlignHeader(VAlign_Center)
-            .HAlignHeader(HAlign_Center)
-            .VAlignCell(VAlign_Center)
-            .HAlignCell(HAlign_Center)
-            [
-                SAssignNew(ControlCheckBox, SCheckBox)
-                    .IsChecked(ECheckBoxState::Unchecked)
-                    .OnCheckStateChanged(this, &SDataTableManager::OnCheckStateChanged)
-            ]
-
-            + SHeaderRow::Column(ColumnID_SheetLabel)
-            .DefaultLabel(LOCTEXT("CSVConverter_SheetLabel", "Sheet Name"))
-            .ManualWidth(300.f)
-            .VAlignHeader(VAlign_Center)
-            .HAlignHeader(HAlign_Center)
-            .VAlignCell(VAlign_Center)
-            .HAlignCell(HAlign_Center)
-
-            + SHeaderRow::Column(ColumnID_ExcelLabel)
-            .DefaultLabel(LOCTEXT("CSVConverter_ExcelLabel", "Excel Name"))
-            .ManualWidth(300.f)
-            .VAlignHeader(VAlign_Center)
-            .HAlignHeader(HAlign_Center)
-            .VAlignCell(VAlign_Center)
-            .HAlignCell(HAlign_Center)
-
-            + SHeaderRow::Column(ColumnID_ExistCSVLabel)
-            .DefaultLabel(LOCTEXT("CSVConverter_ExistCSVLabel", "Exist CSV in Project"))
-            .ManualWidth(300.f)
-            .VAlignHeader(VAlign_Center)
-            .HAlignHeader(HAlign_Center)
-            .VAlignCell(VAlign_Center)
-            .HAlignCell(HAlign_Center)
-
-            + SHeaderRow::Column(ColumnID_ExistStructLabel)
-            .DefaultLabel(LOCTEXT("CSVConverter_ExistStructLabel", "Exist Struct DataType in Project"))
-            .ManualWidth(300.f)
-            .VAlignHeader(VAlign_Center)
-            .HAlignHeader(HAlign_Center)
-            .VAlignCell(VAlign_Center)
-            .HAlignCell(HAlign_Center)
-        );
-}
-
-TSharedRef<ITableRow> SDataTableManager::OnGenerateRowForList(TSharedPtr<FSheetListRowData> InItem, const TSharedRef<STableViewBase>& OwnerTable)
-{
-    check(InItem.IsValid());
-
-    return SNew(SSheetListRow, OwnerTable)
-        .Item(InItem);
-}
-
-TSharedRef<SWidget> SDataTableManager::CreateFolderPathModifier(const FString& InTitleStr, const FString& HintTextValue, const FString& TextBlockValue, TSharedPtr<SEditableTextBox>& InWidgetPtr, void(SDataTableManager::* InFunc_ETB)(const FText&), FReply(SDataTableManager::* InFunc_Btn)())
-{
-    return SNew(SHorizontalBox)
-        + SHorizontalBox::Slot()
-        .AutoWidth()
-        .VAlign(VAlign_Center)
-        .HAlign(HAlign_Left)
-        .Padding(6, 0)
-        [
-            CreateFolderPathTitle(InTitleStr)
-        ]
-        + SHorizontalBox::Slot()
-        .FillWidth(1.0f)
-        .MaxWidth(EditableTextBox_Length)
-        .VAlign(VAlign_Center)
-        .HAlign(HAlign_Left)
-        .Padding(6, 0)
-        [
-            CreateFolderPathTextBox(HintTextValue, TextBlockValue, InWidgetPtr, InFunc_ETB)
-        ]
-        + SHorizontalBox::Slot()
-        .AutoWidth()
-        .VAlign(VAlign_Center)
-        .HAlign(HAlign_Left)
-        .Padding(6, 0)
-        [
-            CreateFolderBrowserButton(InFunc_Btn)
-        ];
-}
-
-TSharedRef<SWidget> SDataTableManager::CreateFolderPathTitle(const FString& InTitleStr)
-{
-    return SNew(STextBlock)
-        .Text(FText::FromString(InTitleStr))
-        .MinDesiredWidth(TextBlock_Length)
-        .ColorAndOpacity(FSlateColor(FLinearColor::White));
-}
-
-
-TSharedRef<SWidget> SDataTableManager::CreateFolderPathTextBox(const FString& HintTextValue, const FString& TextBlockValue, TSharedPtr<SEditableTextBox>& InWidgetPtr, void(SDataTableManager::* InFunc)(const FText&))
-{
-    return SAssignNew(InWidgetPtr, SEditableTextBox)
-        .HintText(FText::FromString(HintTextValue))
-        .Text(FText::FromString(TextBlockValue))
-        .IsReadOnly(true)
-        .IsEnabled(true)
-        .MinDesiredWidth(EditableTextBox_Length)
-        .ForegroundColor(FSlateColor(FLinearColor::White))
-        .OnTextChanged(this, InFunc)
-        .Justification(ETextJustify::Center);
-}
-
-TSharedRef<SWidget> SDataTableManager::CreateFolderBrowserButton(FReply(SDataTableManager::* InFunc)())
-{
-    return SNew(SButton)
-        .ButtonStyle(FAppStyle::Get(), "FlatButton")
-        .OnClicked(this, InFunc)
-        .ContentPadding(FMargin(6, 2))
-        [
-            SNew(SHorizontalBox)
-                + SHorizontalBox::Slot()
-                .VAlign(VAlign_Center)
-                .AutoWidth()
-                [
-                    SNew(STextBlock)
-                        .TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-                        .Font(FAppStyle::Get().GetFontStyle("FontAwesome.11"))
-                        .Text(FEditorFontGlyphs::Folder)
-                ]
-        ];
-}
-
-FReply SDataTableManager::ExcelFolderBrowserBtnClicked()
-{
-    if (ExcelFolderPathWidget.IsValid() == false)
-    {
-        return FReply::Handled();
-    }
-
-    FString Result = OpenBrowserAndGetPath(ExcelFolderPathWidget->GetText().IsEmpty() ? FPaths::ProjectDir() : ExcelFolderPathWidget->GetText().ToString());
-
-    if (Result.IsEmpty() == false)
-    {
-        ExcelFolderPathWidget->SetText(FText::FromString(Result));
-    }
-
-    return FReply::Handled();
-}
-
-FReply SDataTableManager::CSVFolderBrowserBtnClicked()
-{
-    if (CSVFolderPathWidget.IsValid() == false)
-    {
-        return FReply::Handled();
-    }
-
-    FString Result = OpenBrowserAndGetPath(CSVFolderPathWidget->GetText().IsEmpty() ? FPaths::ProjectDir() : CSVFolderPathWidget->GetText().ToString());
-
-    if (Result.IsEmpty() == false)
-    {
-        CSVFolderPathWidget->SetText(FText::FromString(Result));
-    }
-
-    return FReply::Handled();
-}
-
-FReply SDataTableManager::StructFolderBrowserBtnClicked()
-{
-    if (StructFolderPathWidget.IsValid() == false)
-    {
-        return FReply::Handled();
-    }
-
-    FString Result = OpenBrowserAndGetPath(StructFolderPathWidget->GetText().IsEmpty() ? FPaths::GameSourceDir() : StructFolderPathWidget->GetText().ToString());
-
-    if (Result.IsEmpty() == false)
-    {
-        StructFolderPathWidget->SetText(FText::FromString(Result));
-    }
-
-    return FReply::Handled();
-}
-
-FReply SDataTableManager::AssetFolderBrowserBtnClicked()
-{
-    if (AssetFolderPathWidget.IsValid() == false)
-    {
-        return FReply::Handled();
-    }
-
-    FString Result = OpenBrowserAndGetPath(AssetFolderPathWidget->GetText().IsEmpty() ? FPaths::ProjectContentDir() : AssetFolderPathWidget->GetText().ToString());
-
-    if (Result.IsEmpty() == false)
-    {
-        AssetFolderPathWidget->SetText(FText::FromString(Result));
-    }
-
-    return FReply::Handled();
-}
-
-FString SDataTableManager::OpenBrowserAndGetPath(const FString& InPath)
-{
-    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-    if (!DesktopPlatform)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Can't Use DesktopPlatformModule"));
-        return "";
-    }
-
-    const void* ParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
-
-    FString OutFolderName;
-    const bool bFileOpened = DesktopPlatform->OpenDirectoryDialog(
-        ParentWindowHandle,
-        TEXT("Select Folder"),
-        InPath,
-        OutFolderName
-    );
-
-    FString RelavtiveOutFolderName = FPaths::ConvertRelativePathToFull(OutFolderName);
-    FString RelativeProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-    FPaths::NormalizeDirectoryName(RelavtiveOutFolderName);
-    FPaths::NormalizeDirectoryName(RelativeProjectDir);
-
-    if (RelavtiveOutFolderName.StartsWith(RelativeProjectDir, ESearchCase::CaseSensitive) == false)
-    {
-        FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("ErrorMSG_SelectFolderPath", "Selected Folder Path is not in project directory"));
-        return "";
-    }
-
-    return RelavtiveOutFolderName;
+    SheetListView->RefreshSheetState(ExcelFiles, CSVFiles, UStructObjs);
+    SheetListView->RefreshCSVState(CSVFiles);
 }
 
 void SDataTableManager::OnCSVFolderPathTextChanged(const FText& NewText)
 {
     TryCacheCSVFiles();
-    RefreshCSVState();
-    SaveConfig();
+    SheetListView->RefreshCSVState(CSVFiles);
 }
 
 void SDataTableManager::OnExcelFolderPathTextChanged(const FText& NewText)
 {
     TryCacheExcelFiles();
     TryCacheCSVFiles();
-    RefreshSheetState();
-    RefreshCSVState();
-    SaveConfig();
-}
-
-void SDataTableManager::OnStructFolderPathTextChanged(const FText& NewText)
-{
-    SaveConfig();
-}
-
-void SDataTableManager::OnAssetFolderPathTextChanged(const FText& NewText)
-{
-    SaveConfig();
-}
-
-void SDataTableManager::LoadConfig()
-{
-    if (ToolConfig == nullptr)
-    {
-        return;
-    }
-
-    ToolConfig->LoadConfig();
-
-    if (ExcelFolderPathWidget.IsValid())
-    {
-        ExcelFolderPathWidget->SetText(FText::FromString(ToolConfig->CachedExcelPath));
-    }
-    if (CSVFolderPathWidget.IsValid())
-    {
-        CSVFolderPathWidget->SetText(FText::FromString(ToolConfig->CachedCSVPath));
-    }
-    if (StructFolderPathWidget.IsValid())
-    {
-        StructFolderPathWidget->SetText(FText::FromString(ToolConfig->CachedStructPath));
-    }
-    if (AssetFolderPathWidget.IsValid())
-    {
-        AssetFolderPathWidget->SetText(FText::FromString(ToolConfig->CachedAssetPath));
-    }
-}
-
-void SDataTableManager::SaveConfig()
-{
-    if (ToolConfig == nullptr || ExcelFolderPathWidget.IsValid() == false || CSVFolderPathWidget.IsValid() == false || StructFolderPathWidget.IsValid() == false || AssetFolderPathWidget.IsValid() == false)
-    {
-        return;
-    }
-
-    ToolConfig->CachedExcelPath = ExcelFolderPathWidget->GetText().ToString();
-    ToolConfig->CachedCSVPath = CSVFolderPathWidget->GetText().ToString();
-    ToolConfig->CachedStructPath = StructFolderPathWidget->GetText().ToString();
-    ToolConfig->CachedAssetPath = AssetFolderPathWidget->GetText().ToString();
-
-    ToolConfig->SaveConfig();
-}
-
-
-void SDataTableManager::RefreshSheetState()
-{
-    DataList.Empty();
-
-    if (ControlCheckBox.IsValid())
-    {
-        ControlCheckBox->SetIsChecked(ECheckBoxState::Unchecked);
-    }
-
-    for (const FString& ExcelFile : ExcelFiles)
-    {
-        TArray<FString> SheetsInExcel;
-        XlsxManager::FindAllSheetInExcelFile(SheetsInExcel, ExcelFile);
-
-        for (const FString& SheetName : SheetsInExcel)
-        {
-            FString* CSVFullPath = CSVFiles.FindByPredicate(FindBySheetName_Functer(SheetName));
-            TWeakObjectPtr<UScriptStruct>* UStructObj = UStructObjs.FindByPredicate(FindBySheetName_Functer(SheetName));
-
-            DataList.Add(MakeShared<FSheetListRowData>(SheetName, ExcelFile, CSVFullPath == nullptr ? "" : *CSVFullPath, UStructObj == nullptr ? nullptr : (*UStructObj).Get(), false));
-        }
-    }
-
-    ListView->RequestListRefresh();
-}
-
-
-void SDataTableManager::RefreshCSVState()
-{
-    for (TSharedPtr<FSheetListRowData> Data : DataList)
-    {
-        if (Data.IsValid())
-        {
-            FString* CSVFullPath = CSVFiles.FindByPredicate(FindBySheetName_Functer(Data->GetSheetName()));
-            if (CSVFullPath != nullptr)
-            {
-                Data->SetCSVFullPath(*CSVFullPath);
-            }
-        }
-    }
+    SheetListView->RefreshSheetState(ExcelFiles, CSVFiles, UStructObjs);
+    SheetListView->RefreshCSVState(CSVFiles);
 }
 
 void SDataTableManager::TryCacheUStructName()
@@ -583,26 +168,16 @@ void SDataTableManager::TryCacheUStructName()
 
 void SDataTableManager::TryCacheCSVFiles()
 {
-    if (ToolConfig == nullptr || ToolConfig->CachedCSVPath.IsEmpty())
-    {
-        return;
-    }
-
     CSVFiles.Empty();
 
-    XlsxManager::FindAllFilesInFolderPath(CSVFiles, ToolConfig->CachedCSVPath, ".csv");
+    XlsxManager::FindAllFilesInFolderPath(CSVFiles, *FolderPathModifiers[EPathType::PATH_CSV]->GetPathPtrOnType(), ".csv");
 }
 
 void SDataTableManager::TryCacheExcelFiles()
 {
-    if (ToolConfig == nullptr || ToolConfig->CachedExcelPath.IsEmpty())
-    {
-        return;
-    }
-
     ExcelFiles.Empty();
 
-    XlsxManager::FindAllFilesInFolderPath(ExcelFiles, ToolConfig->CachedExcelPath, ".xlsx");
+    XlsxManager::FindAllFilesInFolderPath(ExcelFiles, *FolderPathModifiers[EPathType::PATH_EXCEL]->GetPathPtrOnType(), ".xlsx");
 }
 
 
@@ -622,7 +197,7 @@ TSharedRef<SWidget> SDataTableManager::CreateControlButton(const FString& InBtnT
 
 FReply SDataTableManager::OnCSVConverterClicked()
 {
-    FString CSVFolderPath = CSVFolderPathWidget->GetText().ToString();
+    FString CSVFolderPath = *FolderPathModifiers[EPathType::PATH_CSV]->GetPathPtrOnType();
 
     if (CSVFolderPath.IsEmpty() || FPaths::DirectoryExists(CSVFolderPath) == false)
     {
@@ -632,7 +207,7 @@ FReply SDataTableManager::OnCSVConverterClicked()
 
     TMap<FString,TArray<FString>> SheetMap;
 
-    for (TSharedPtr<FSheetListRowData> Data : DataList)
+    for (TSharedPtr<FSheetListRowData> Data : SheetListView->GetDataList())
     {
         if (Data.IsValid() && Data->IsChecked())
         {
@@ -653,7 +228,7 @@ FReply SDataTableManager::OnCSVConverterClicked()
         }
     }
 
-    RefreshCSVState();
+    SheetListView->RefreshCSVState(CSVFiles);
 
     FMessageDialog::Open(EAppMsgCategory::Success, EAppMsgType::Ok, LOCTEXT("SuccessMSG_ConvertCSV", "Convert CSV Success"));
 
@@ -662,8 +237,8 @@ FReply SDataTableManager::OnCSVConverterClicked()
 
 FReply SDataTableManager::OnStructGeneratorClicked()
 {
-    FString CSVFolderPath = CSVFolderPathWidget->GetText().ToString();
-    FString StructFolderPath = StructFolderPathWidget->GetText().ToString();
+    FString CSVFolderPath = *FolderPathModifiers[EPathType::PATH_CSV]->GetPathPtrOnType();
+    FString StructFolderPath = *FolderPathModifiers[EPathType::PATH_STRUCT]->GetPathPtrOnType();
 
     if (CSVFolderPath.IsEmpty() || FPaths::DirectoryExists(CSVFolderPath) == false)
     {
@@ -679,7 +254,7 @@ FReply SDataTableManager::OnStructGeneratorClicked()
 
     TArray<FString> ExcelAry;
 
-    for (TSharedPtr<FSheetListRowData> Data : DataList)
+    for (TSharedPtr<FSheetListRowData> Data : SheetListView->GetDataList())
     {
         if (Data.IsValid() && Data->IsChecked())
         {
@@ -721,7 +296,7 @@ FReply SDataTableManager::OnStructGeneratorClicked()
 
 FReply SDataTableManager::OnImportCSVClicked()
 {
-    FString AssetFolderPath = AssetFolderPathWidget->GetText().ToString();
+    FString AssetFolderPath = *FolderPathModifiers[EPathType::PATH_ASSET]->GetPathPtrOnType();
 
     if (AssetFolderPath.IsEmpty() || FPaths::DirectoryExists(AssetFolderPath) == false)
     {
@@ -731,11 +306,11 @@ FReply SDataTableManager::OnImportCSVClicked()
 
     bool Result = false;
 
-    for (TSharedPtr<FSheetListRowData> Data : DataList)
+    for (TSharedPtr<FSheetListRowData> Data : SheetListView->GetDataList())
     {
         if (Data.IsValid() && Data->IsChecked())
         {
-            Result = DataTableAssetGanerator::CreateDataTableFromCSV(Data->GetSheetName(), Data->GetCSVFullPath(), ToolConfig->CachedAssetPath, Data->GetStructure());
+            Result = DataTableAssetGanerator::CreateDataTableFromCSV(Data->GetSheetName(), Data->GetCSVFullPath(), AssetFolderPath, Data->GetStructure());
 
             if (Result == false)
             {
@@ -750,19 +325,8 @@ FReply SDataTableManager::OnImportCSVClicked()
     }
     else
     {
-        FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("SuccessMSG_CreateAsset", "Create Data Table Failed"));
+        FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("ErrorMSG_CreateAsset", "Create Data Table Failed"));
     }
 
     return FReply::Handled();
-}
-
-void SDataTableManager::OnCheckStateChanged(ECheckBoxState NewState)
-{
-    for (TSharedPtr<FSheetListRowData> Data : DataList)
-    {
-        if (Data.IsValid())
-        {
-            Data->SetIsChecked(NewState == ECheckBoxState::Checked);
-        }
-    }
 }

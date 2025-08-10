@@ -5,6 +5,8 @@
 using namespace OpenXLSX;
 using namespace std;
 
+static TArray<string> ValidType = { "int" , "uint", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float" , "double", "bool" , "boolean", "char" , "ansichar","tchar", "fstring" , "ftext","fname" };
+
 XlsxManager::XlsxManager()
 {
 }
@@ -273,30 +275,5 @@ bool XlsxManager::CheckIsDataTypeCell(std::string InStr)
 {
     std::transform(InStr.begin(), InStr.end(), InStr.begin(), ::tolower);
 
-    if (InStr == "int" || InStr == "uint" || InStr == "int8" || InStr == "uint8" || InStr == "int16" || InStr == "uint16" || InStr == "int32" || InStr == "uint32" || InStr == "int64" || InStr == "uint64")
-    {
-        return true;
-    }
-
-    if (InStr == "float" || InStr == "double")
-    {
-        return true;
-    }
-
-    if (InStr == "bool" || InStr == "boolean")
-    {
-        return true;
-    }
-
-    if (InStr == "ansichar" || InStr == "widechar" || InStr == "tchar")
-    {
-        return true;
-    }
-
-    if (InStr == "fstring" || InStr == "ftext" || InStr == "fname")
-    {
-        return true;
-    }
-
-    return false;
+    return ValidType.Contains(InStr);
 }

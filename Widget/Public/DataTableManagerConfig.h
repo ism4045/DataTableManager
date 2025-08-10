@@ -4,6 +4,16 @@
 #include "UObject/NoExportTypes.h"
 #include "DataTableManagerConfig.generated.h"
 
+UENUM()
+enum EPathType : uint8
+{
+	NONE,
+	PATH_EXCEL,
+	PATH_CSV,
+	PATH_STRUCT,
+	PATH_ASSET,
+};
+
 /**
  * 
  */

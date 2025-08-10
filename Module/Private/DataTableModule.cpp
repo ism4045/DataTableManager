@@ -47,7 +47,7 @@ void FDataTableModule::RegisterMenus()
 		"OpenDataTableManager",
 		LOCTEXT("DataTableManagerMenuEntry", "Data Table Manager"),
 		LOCTEXT("DataTableManagerMenuEntryTooltip", "Manage Xlsx, CSV, DataTable Assets"),
-		FSlateIcon(FEditorStyle::GetStyleSetName(),"ClassIcon.DataTable"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(),"ClassIcon.DataTable"),
 		FUIAction(FExecuteAction::CreateLambda([this]() {
 			FGlobalTabmanager::Get()->TryInvokeTab(DataTableManagerTabName);
 			}))

@@ -19,14 +19,7 @@ public class DataTableModule : ModuleRules
                 Path.Combine(ThirdPartyPath, "include", "OpenXLSX", "external", "pugixml"),
             });
 
-        if (Target.Configuration == UnrealTargetConfiguration.Debug)
-        {
-            PublicAdditionalLibraries.Add(Path.Combine(ThirdPartyPath, "lib", "OpenXLSX", "OpenXLSXd.lib"));
-        }
-        else
-        {
-            PublicAdditionalLibraries.Add(Path.Combine(ThirdPartyPath, "lib", "OpenXLSX", "OpenXLSX.lib"));
-        }
+        PublicAdditionalLibraries.Add(Path.Combine(ThirdPartyPath, "lib", "OpenXLSX", "OpenXLSX.lib"));
 
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "UnrealEd", "Slate", "SlateCore", "EditorStyle", "ToolMenus", "Projects", "UMG", "AssetTools", "AssetRegistry" });
 
