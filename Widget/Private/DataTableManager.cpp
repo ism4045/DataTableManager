@@ -31,15 +31,6 @@
 
 #define LOCTEXT_NAMESPACE "DataTableManager"
 
-static const float EditableTextBox_Length = 1125.f;
-static const float TextBlock_Length = 100.f;
-
-static const FName ColumnID_SelectLabel("Select");
-static const FName ColumnID_SheetLabel("SheetName");
-static const FName ColumnID_ExcelLabel("ExcelName");
-static const FName ColumnID_ExistCSVLabel("ExistCSV");
-static const FName ColumnID_ExistStructLabel("ExistStruct");
-
 void SDataTableManager::Construct(const FArguments& InArgs)
 {
     TryCacheUStructName();
